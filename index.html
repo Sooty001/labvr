@@ -7,8 +7,6 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.2.0/aframe.min.js"></script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-  <!-- Физику убираем: aframe-physics-system нестабильна в AR.js без маркеров.
-       Падение реализуем вручную через tick(). -->
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,182 +15,251 @@
     #ui {
       position: fixed; top: 0; left: 0; right: 0;
       display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent);
+      padding: 16px 20px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
       pointer-events: none; z-index: 10;
     }
-    #score { font-size: 28px; font-weight: bold; color: #fff; text-shadow: 0 2px 6px #000; }
-    #timer { font-size: 28px; font-weight: bold; color: #fff; text-shadow: 0 2px 6px #000; }
-    #gps-info { font-size: 14px; color: #aaa; position: absolute; bottom: -20px; left: 20px; text-shadow: 1px 1px 2px #000; }
+    #score { font-size: 32px; font-weight: bold; color: #fff; text-shadow: 0 2px 8px #000; }
+    #timer { font-size: 32px; font-weight: bold; color: #fff; text-shadow: 0 2px 8px #000; }
+    #gps-info {
+      font-size: 13px; color: rgba(255,255,255,0.6);
+      position: absolute; top: 60px; left: 20px;
+    }
+
+    /* Прицел в центре экрана */
+    #crosshair {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px; height: 60px;
+      pointer-events: none; z-index: 10;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.85);
+      border-radius: 2px;
+    }
+    #crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; margin-left: -1px; }
+    #crosshair::after  { width: 100%; height: 2px; top: 50%; left: 0; margin-top: -1px; }
+
+    #crosshair-ring {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px; height: 80px;
+      border: 2px solid rgba(249,199,79,0.7);
+      border-radius: 50%;
+      pointer-events: none; z-index: 10;
+      transition: transform 0.12s, border-color 0.12s;
+    }
+    #crosshair-ring.hit {
+      transform: translate(-50%, -50%) scale(1.5);
+      border-color: #f9c74f;
+    }
+
+    #hint {
+      display: none;
+      position: fixed; bottom: 40px; left: 0; right: 0;
+      text-align: center; color: rgba(255,255,255,0.75);
+      font-size: 15px; pointer-events: none; z-index: 10;
+      text-shadow: 0 1px 4px #000;
+    }
 
     #start-screen {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      position: fixed; inset: 0; background: rgba(0,0,0,0.78);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 20; gap: 16px; color: #fff; text-align: center; padding: 30px; pointer-events: auto;
+      z-index: 20; gap: 14px; color: #fff; text-align: center; padding: 30px;
     }
-    #start-screen h1 { font-size: 42px; letter-spacing: 2px; }
-    #start-screen p  { font-size: 18px; opacity: 0.8; max-width: 300px; }
+    #start-screen h1 { font-size: 40px; letter-spacing: 2px; }
+    #start-screen p  { font-size: 16px; opacity: 0.8; max-width: 280px; line-height: 1.5; }
+    .how-to {
+      background: rgba(255,255,255,0.1); border-radius: 16px;
+      padding: 14px 20px; font-size: 15px; max-width: 280px; line-height: 1.8;
+      text-align: left;
+    }
+    .how-to b { color: #f9c74f; }
     #start-btn, #restart-btn {
-      margin-top: 10px; padding: 16px 48px; font-size: 22px; font-weight: bold;
+      margin-top: 8px; padding: 16px 48px; font-size: 22px; font-weight: bold;
       background: #f9c74f; color: #000; border: none; border-radius: 50px; cursor: pointer;
-      box-shadow: 0 4px 20px rgba(249,199,79,0.5); pointer-events: auto;
+      box-shadow: 0 4px 20px rgba(249,199,79,0.5);
     }
 
     #end-screen {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.82);
       flex-direction: column; align-items: center; justify-content: center;
-      z-index: 20; gap: 16px; color: #fff; text-align: center; padding: 30px; pointer-events: auto;
+      z-index: 20; gap: 16px; color: #fff; text-align: center; padding: 30px;
     }
     #end-screen h1 { font-size: 40px; }
-    #end-score     { font-size: 56px; font-weight: bold; color: #f9c74f; }
+    #end-score     { font-size: 60px; font-weight: bold; color: #f9c74f; }
   </style>
 
   <script>
-    // ===== Компонент регистрируем ДО инициализации A-Frame =====
     let isPlaying = false;
     let score = 0;
 
-    // Компонент ручного падения (заменяет physics)
-    // Каждый объект сам управляет своей Y-координатой
+    // ─────────────────────────────────────────────────────────
+    // Считает мировую позицию точки перед камерой.
+    // dist   — расстояние вперёд (метры)
+    // oxX/oY — боковое и вертикальное смещение
+    // ─────────────────────────────────────────────────────────
+    function posInFrontOfCamera(camEl, dist, offX, offY) {
+      const obj3d = camEl.object3D;
+
+      const fwd   = new THREE.Vector3(0, 0, -1).applyQuaternion(obj3d.quaternion);
+      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(obj3d.quaternion);
+      const up    = new THREE.Vector3(0, 1, 0); // мировой up — объекты падают вертикально
+
+      const origin = new THREE.Vector3();
+      obj3d.getWorldPosition(origin);
+
+      return {
+        x: origin.x + fwd.x * dist + right.x * offX,
+        y: origin.y + fwd.y * dist + offY,        // Y смещаем глобально (вверх)
+        z: origin.z + fwd.z * dist + right.z * offX,
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Компонент падения (без внешней физики)
+    // ─────────────────────────────────────────────────────────
     AFRAME.registerComponent('faller', {
       schema: { active: { default: false } },
       init: function () {
-        this.vy = 0;          // вертикальная скорость
-        this.gravity = -4.5;  // ускорение (м/с²)
-        this.floor = -1.5;    // Y при достижении которой объект телепортируется наверх
+        this.vy      = 0;
+        this.GRAVITY = -3.8;   // м/с²
+        this.FLOOR   = -2.5;   // ниже этого Y — перерождаем
       },
+
       tick: function (time, delta) {
         if (!this.data.active || !isPlaying) return;
-        const dt = delta / 1000;
-        this.vy += this.gravity * dt;
+        const dt = Math.min(delta, 80) / 1000; // cap dt чтобы не прыгать при потере фокуса
+        this.vy += this.GRAVITY * dt;
         const pos = this.el.getAttribute('position');
         pos.y += this.vy * dt;
-        if (pos.y < this.floor) {
-          // Упал на пол — перерождаем
-          this.el.components['faller'].reset();
+        if (pos.y < this.FLOOR) {
+          this.respawn();
         } else {
           this.el.setAttribute('position', pos);
         }
       },
-      reset: function () {
+
+      respawn: function () {
         this.vy = 0;
-        const x = (Math.random() - 0.5) * 3;   // -1.5 .. +1.5
-        const z = -(2.5 + Math.random() * 2);   // -2.5 .. -4.5 ПЕРЕД игроком
-        const y = 4 + Math.random() * 2;        // 4 .. 6 сверху
-        this.el.setAttribute('position', { x, y, z });
-        this.el.setAttribute('scale', '1 1 1'); // восстановить после hit-анимации
+        const cam = document.querySelector('a-camera');
+        if (!cam) return;
+
+        // Всегда ПЕРЕД камерой: 3–5 м вперёд, случайно вбок, высоко сверху
+        const dist = 3.0 + Math.random() * 2.0;    // 3–5 м перед игроком
+        const offX = (Math.random() - 0.5) * 2.5;  // ±1.25 м вбок
+        const offY = 2.5 + Math.random() * 2.0;    // 2.5–4.5 м выше взгляда
+
+        const pos = posInFrontOfCamera(cam, dist, offX, offY);
+        this.el.setAttribute('position', pos);
+        this.el.setAttribute('scale', '1 1 1'); // восстановить после анимации hit
       }
     });
 
+    // ─────────────────────────────────────────────────────────
+    // Игровой менеджер
+    // ─────────────────────────────────────────────────────────
     AFRAME.registerComponent('game-manager', {
       init: function () {
-        this.el.addEventListener('loaded', () => {
-          this.setupTargets();
-        });
+        this.el.addEventListener('loaded', () => this.setup());
       },
 
-      setupTargets: function () {
-        this.targets = Array.from(document.querySelectorAll('.target-obj'));
-        const clickSound = document.querySelector('#pop-sound');
+      setup: function () {
+        const sndEl = document.querySelector('#pop-sound');
 
-        this.targets.forEach(target => {
-          target.addEventListener('mousedown', () => {
+        document.querySelectorAll('.target-obj').forEach(t => {
+          t.addEventListener('mousedown', () => {
             if (!isPlaying) return;
 
-            if (clickSound && clickSound.components.sound) {
-              clickSound.components.sound.playSound();
-            }
+            // Звук
+            if (sndEl?.components?.sound) sndEl.components.sound.playSound();
 
+            // Счёт
             score++;
             document.getElementById('score').textContent = `⭐ ${score}`;
 
-            target.emit('hit');
+            // Анимация прицела
+            const ring = document.getElementById('crosshair-ring');
+            ring.classList.add('hit');
+            setTimeout(() => ring.classList.remove('hit'), 150);
 
-            // После анимации сжатия — перерождаем
-            setTimeout(() => {
-              const faller = target.components['faller'];
-              if (faller) faller.reset();
-            }, 200);
+            // Hit-анимация объекта, потом respawn
+            t.emit('hit');
+            setTimeout(() => t.components.faller?.respawn(), 160);
           });
         });
-      },
-
-      respawn: function (target) {
-        const faller = target.components['faller'];
-        if (faller) {
-          faller.data.active = true;
-          faller.reset();
-        }
       }
     });
 
-    // ===== UI и таймер =====
+    // ─────────────────────────────────────────────────────────
+    // UI
+    // ─────────────────────────────────────────────────────────
     window.addEventListener('DOMContentLoaded', () => {
       let timeLeft = 30;
       let timerInterval = null;
 
-      const startBtn    = document.getElementById('start-btn');
-      const restartBtn  = document.getElementById('restart-btn');
       const startScreen = document.getElementById('start-screen');
       const endScreen   = document.getElementById('end-screen');
       const scoreEl     = document.getElementById('score');
       const timerEl     = document.getElementById('timer');
       const endScoreEl  = document.getElementById('end-score');
-
-      function getManager() {
-        const scene = document.querySelector('a-scene');
-        return scene && scene.components['game-manager'];
-      }
+      const crosshair   = document.getElementById('crosshair');
+      const ring        = document.getElementById('crosshair-ring');
+      const hint        = document.getElementById('hint');
 
       function startGame() {
-        const manager = getManager();
-        if (!manager) return;
-
         startScreen.style.display = 'none';
         endScreen.style.display   = 'none';
+        crosshair.style.display   = 'block';
+        ring.style.display        = 'block';
+        hint.style.display        = 'block';
 
-        score    = 0;
-        timeLeft = 30;
-        isPlaying = true;
-        scoreEl.textContent = '⭐ 0';
-        timerEl.textContent = '30';
+        score = 0; timeLeft = 30; isPlaying = true;
+        scoreEl.textContent   = '⭐ 0';
+        timerEl.textContent   = '30';
+        timerEl.style.color   = '#fff';
 
         if (timerInterval) clearInterval(timerInterval);
 
-        // Активируем все объекты и сбрасываем позиции
-        const targets = document.querySelectorAll('.target-obj');
-        targets.forEach(t => {
-          // Включаем faller и сбрасываем на случайную позицию перед игроком
+        // Активируем faller у всех объектов
+        document.querySelectorAll('.target-obj').forEach((t, i) => {
           t.setAttribute('faller', 'active: true');
-          const faller = t.components['faller'];
-          if (faller) { faller.vy = 0; faller.reset(); }
+          // Небольшая задержка между объектами чтобы не спавнились в одном месте
+          setTimeout(() => t.components.faller?.respawn(), 100 + i * 200);
         });
 
         timerInterval = setInterval(() => {
           timeLeft--;
           timerEl.textContent = timeLeft;
+          if (timeLeft <= 5) timerEl.style.color = '#ff6b6b';
           if (timeLeft <= 0) endGame();
         }, 1000);
       }
 
       function endGame() {
         isPlaying = false;
-        clearInterval(timerInterval);
-        timerInterval = null;
+        clearInterval(timerInterval); timerInterval = null;
+        crosshair.style.display = ring.style.display = hint.style.display = 'none';
+        timerEl.style.color = '#fff';
         endScoreEl.textContent = score;
         endScreen.style.display = 'flex';
       }
 
-      startBtn.addEventListener('click', startGame);
-      restartBtn.addEventListener('click', startGame);
+      document.getElementById('start-btn').addEventListener('click', startGame);
+      document.getElementById('restart-btn').addEventListener('click', startGame);
 
       // GPS
-      const gpsUI = document.getElementById('gps-info');
       if ('geolocation' in navigator) {
+        const gEl = document.getElementById('gps-info');
         navigator.geolocation.watchPosition(
-          pos => {
-            gpsUI.innerText = `GPS: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          },
-          () => { gpsUI.innerText = 'GPS недоступен'; },
+          p => { gEl.textContent = `GPS: ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`; },
+          () => { gEl.textContent = 'GPS недоступен'; },
           { enableHighAccuracy: true }
         );
       }
@@ -201,17 +268,27 @@
 </head>
 
 <body>
-  <!-- HTML интерфейс -->
   <div id="ui">
     <div id="score">⭐ 0</div>
     <div id="timer">30</div>
     <div id="gps-info">Поиск GPS...</div>
   </div>
 
+  <div id="crosshair"></div>
+  <div id="crosshair-ring"></div>
+  <div id="hint">📱 Наведи прицел на объект и тапни!</div>
+
   <div id="start-screen">
     <h1>🎯 Поймай AR!</h1>
-    <p>Тапай по 3D моделям, пока не закончится время</p>
-    <button id="start-btn">Начать</button>
+    <p>Объекты падают прямо перед тобой в реальном мире</p>
+    <div class="how-to">
+      <b>Как играть:</b><br>
+      1. Держи телефон горизонтально перед собой<br>
+      2. Наведи <b>прицел ✛</b> на объект<br>
+      3. <b>Тапни</b> по экрану — +1 очко<br>
+      4. У тебя <b>30 секунд!</b>
+    </div>
+    <button id="start-btn">Начать!</button>
   </div>
 
   <div id="end-screen">
@@ -221,90 +298,61 @@
     <button id="restart-btn">Играть снова</button>
   </div>
 
-  <!-- A-Frame AR сцена -->
-  <!--
-    ФИКС cursor: перенесён на a-camera с raycaster,
-    чтобы клики по объектам в AR работали корректно.
-    На уровне a-scene оставляем только атрибуты сцены.
-  -->
   <a-scene
     game-manager
     vr-mode-ui="enabled: false"
-    arjs="sourceType: webcam; debugUIEnabled: false; trackingMethod: best;"
-    renderer="logarithmicDepthBuffer: true; colorManagement: true;"
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+    renderer="logarithmicDepthBuffer: true;"
   >
     <a-assets>
-      <img   id="ground-tex"   src="https://i.imgur.com/mCQhcAQ.jpeg" crossorigin="anonymous">
-      <audio id="click-sound"  src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" crossorigin="anonymous" preload="auto"></audio>
+      <audio id="click-sound"
+             src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"
+             crossorigin="anonymous" preload="auto"></audio>
       <a-asset-item id="blender-model" src="model.glb"></a-asset-item>
     </a-assets>
 
-    <!-- Звук -->
     <a-entity id="pop-sound" sound="src: #click-sound; poolSize: 5"></a-entity>
 
-    <!-- Sky прозрачный (для AR-камеры) -->
-    <a-sky color="#ffffff" opacity="0"></a-sky>
+    <a-sky color="#000" opacity="0"></a-sky>
 
-    <!-- Свет -->
-    <a-light type="ambient"     color="#ffffff" intensity="0.8"></a-light>
-    <a-light type="directional" position="-1 2 1" intensity="0.5"></a-light>
+    <a-light type="ambient"     color="#fff" intensity="1.0"></a-light>
+    <a-light type="directional" position="0 5 2" intensity="0.6"></a-light>
 
-    <!--
-      ФИКС камеры:
-      - look-controls отключён (AR управляет камерой сам)
-      - cursor + raycaster добавлены на камеру — так клики/тапы
-        корректно проецируются в 3D-пространство AR
-    -->
+    <!-- Камера: look-controls выключены, AR.js управляет ориентацией сам.
+         raycaster ищет только .target-obj -->
     <a-camera
       position="0 1.6 0"
       look-controls="enabled: false"
       cursor="fuse: false; rayOrigin: mouse"
-      raycaster="objects: .target-obj; far: 30"
-    >
-      <!-- a-text убран: в AR он рендерится как текстура и "плывёт" по экрану -->
-    </a-camera>
+      raycaster="objects: .target-obj; far: 40"
+    ></a-camera>
 
-    <!-- Земля — визуальная, без физики -->
-    <a-plane
-      src="#ground-tex"
-      rotation="-90 0 0"
-      width="20" height="20"
-      position="0 -1.5 -3.5"
-      opacity="0.35"
-    ></a-plane>
+    <!-- Объекты: спрятаны (scale почти 0) до старта игры.
+         faller.respawn() ставит их ПЕРЕД камерой динамически. -->
 
-    <!-- ===== ЦЕЛЕВЫЕ ОБЪЕКТЫ =====
-         faller компонент управляет падением.
-         Объекты стартуют с active:false — активируются при нажатии "Начать".
-         z = -3..-4.5 = ПЕРЕД игроком, не на нём.
-    -->
-
-    <!-- Объект 1 -->
     <a-entity class="target-obj"
               faller="active: false"
-              position="-1 4 -3.5"
-              animation__hit="property: scale; to: 0.01 0.01 0.01; dur: 120; startEvents: hit; easing: easeInQuad">
-      <a-entity animation="property: rotation; to: 0 360 0; loop: true; dur: 3000; easing: linear">
+              scale="0.001 0.001 0.001"
+              animation__hit="property: scale; to: 0.01 0.01 0.01; dur: 130; startEvents: hit; easing: easeInQuad">
+      <a-entity animation="property: rotation; to: 0 360 0; loop: true; dur: 2800; easing: linear">
         <a-entity gltf-model="#blender-model" scale="1 1 1"></a-entity>
       </a-entity>
     </a-entity>
 
-    <!-- Объект 2 -->
     <a-entity class="target-obj"
               faller="active: false"
-              position="0 5 -4"
-              animation__hit="property: scale; to: 0.01 0.01 0.01; dur: 120; startEvents: hit; easing: easeInQuad">
-      <a-entity animation="property: rotation; to: 0 -360 0; loop: true; dur: 2500; easing: linear">
+              scale="0.001 0.001 0.001"
+              animation__hit="property: scale; to: 0.01 0.01 0.01; dur: 130; startEvents: hit; easing: easeInQuad">
+      <a-entity animation="property: rotation; to: 0 -360 0; loop: true; dur: 2200; easing: linear">
         <a-entity gltf-model="#blender-model" scale="1 1 1"></a-entity>
       </a-entity>
     </a-entity>
 
-    <!-- Объект 3 -->
     <a-entity class="target-obj"
               faller="active: false"
-              position="1 4.5 -3.5"
-              animation__hit="property: scale; to: 0.01 0.01 0.01; dur: 120; startEvents: hit; easing: easeInQuad">
-      <a-entity animation="property: rotation; to: 360 360 0; loop: true; dur: 4000; easing: linear">
+              scale="0.001 0.001 0.001"
+              animation__hit="property: scale; to: 0.01 0.01 0.01; dur: 130; startEvents: hit; easing: easeInQuad">
+      <a-entity animation="property: rotation; to: 360 360 0; loop: true; dur: 3500; easing: linear">
         <a-entity gltf-model="#blender-model" scale="1 1 1"></a-entity>
       </a-entity>
     </a-entity>
