@@ -160,60 +160,15 @@
         hitbox.setAttribute('material', 'opacity: 0; transparent: true; depthWrite: false');
         z_el.appendChild(hitbox);
 
-        // ── ТЕЛО ЗОМБИ (только примитивы) ──
-        // Туловище
-        let torso = document.createElement('a-box');
-        torso.setAttribute('position', '0 1.1 0');
-        torso.setAttribute('width', '0.55'); torso.setAttribute('height', '0.8'); torso.setAttribute('depth', '0.3');
-        torso.setAttribute('color', '#3a5a2a');
-        z_el.appendChild(torso);
-
-        // Голова
-        let head = document.createElement('a-box');
-        head.setAttribute('position', '0 1.75 0');
-        head.setAttribute('width', '0.42'); head.setAttribute('height', '0.42'); head.setAttribute('depth', '0.38');
-        head.setAttribute('color', '#5a7a3a');
-        z_el.appendChild(head);
-
-        // Глаза
-        [[-0.1, 0.05], [0.1, 0.05]].forEach(([ex]) => {
-          let eye = document.createElement('a-sphere');
-          eye.setAttribute('position', `${ex} 1.82 0.2`);
-          eye.setAttribute('radius', '0.06');
-          eye.setAttribute('color', '#ff2200');
-          eye.setAttribute('material', 'emissive: #ff0000; emissiveIntensity: 0.8');
-          z_el.appendChild(eye);
-        });
-
-        // Ноги (анимация ходьбы)
-        let legL = document.createElement('a-box');
-        legL.setAttribute('position', '-0.14 0.4 0');
-        legL.setAttribute('width', '0.2'); legL.setAttribute('height', '0.6'); legL.setAttribute('depth', '0.2');
-        legL.setAttribute('color', '#2a3a1a');
-        legL.setAttribute('animation', 'property: rotation; from: 20 0 0; to: -20 0 0; dir: alternate; dur: 400; loop: true');
-        z_el.appendChild(legL);
-
-        let legR = document.createElement('a-box');
-        legR.setAttribute('position', '0.14 0.4 0');
-        legR.setAttribute('width', '0.2'); legR.setAttribute('height', '0.6'); legR.setAttribute('depth', '0.2');
-        legR.setAttribute('color', '#2a3a1a');
-        legR.setAttribute('animation', 'property: rotation; from: -20 0 0; to: 20 0 0; dir: alternate; dur: 400; loop: true');
-        z_el.appendChild(legR);
-
-        // Руки (вперёд — как зомби)
-        let armL = document.createElement('a-box');
-        armL.setAttribute('position', '-0.38 1.1 0.15');
-        armL.setAttribute('width', '0.18'); armL.setAttribute('height', '0.6'); armL.setAttribute('depth', '0.18');
-        armL.setAttribute('rotation', '-45 0 0');
-        armL.setAttribute('color', '#3a5a2a');
-        z_el.appendChild(armL);
-
-        let armR = document.createElement('a-box');
-        armR.setAttribute('position', '0.38 1.1 0.15');
-        armR.setAttribute('width', '0.18'); armR.setAttribute('height', '0.6'); armR.setAttribute('depth', '0.18');
-        armR.setAttribute('rotation', '-45 0 0');
-        armR.setAttribute('color', '#3a5a2a');
-        z_el.appendChild(armR);
+        // ── МОДЕЛЬ ЗОМБИ из Блендера ──
+        let model = document.createElement('a-entity');
+        model.setAttribute('gltf-model', '#zombie-model');
+        model.setAttribute('scale',    '1 1 1');
+        model.setAttribute('position', '0 0 0');
+        // Покачивание при ходьбе
+        model.setAttribute('animation__walk',
+          'property: rotation; from: 0 0 -2; to: 0 0 2; dir: alternate; dur: 350; loop: true; easing: easeInOutSine');
+        z_el.appendChild(model);
 
         // HP: 1 + бонус за волну
         let hp = 1 + Math.floor(G.wave / 2);
@@ -259,8 +214,11 @@
         let G = window.G;
 
         // Вспышка дула
-        let flash = document.querySelector('#muzzle');
-        if (flash) { flash.emit('flash'); }
+        // Анимация отдачи и вспышка
+        let gunEnt = document.querySelector('#gun-attach');
+        if (gunEnt) gunEnt.emit('fire');
+        let flash2 = document.querySelector('#muzzle2');
+        if (flash2) flash2.emit('flash');
 
         let raycaster = document.querySelector('#cursor').components.raycaster;
         let hits = raycaster.intersectedEls;
@@ -283,12 +241,12 @@
         let hp = parseInt(root.getAttribute('data-hp') || '1') - 1;
         root.setAttribute('data-hp', hp);
 
-        // Вспышка попадания — все цветные боксы краснеют
-        root.querySelectorAll('a-box:not([class])').forEach(b => {
-          let orig = b.getAttribute('color');
-          b.setAttribute('color', '#cc2200');
-          setTimeout(() => { if (b.parentNode) b.setAttribute('color', orig); }, 130);
-        });
+        // Вспышка попадания — быстрое масштабирование
+        let mdl = root.querySelector('[gltf-model]');
+        if (mdl) {
+          mdl.setAttribute('scale', '1.15 1.15 1.15');
+          setTimeout(() => { if (mdl.parentNode) mdl.setAttribute('scale', '1 1 1'); }, 120);
+        }
 
         if (hp <= 0) {
           root.parentNode.removeChild(root);
@@ -317,7 +275,8 @@
   <a-scene physics="debug: false" spawner shooter>
 
     <a-assets>
-      <!-- Нет звуков, нет внешних моделей -->
+      <a-asset-item id="zombie-model" src="assets/zombie.glb"></a-asset-item>
+      <a-asset-item id="gun-model"    src="assets/gun.glb"></a-asset-item>
     </a-assets>
 
     <!-- НЕБО -->
