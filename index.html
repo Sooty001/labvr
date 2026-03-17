@@ -2,149 +2,408 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AR Game: Поймай объект</title>
   
-  <!-- Библиотека A-Frame -->
-  <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-  <!-- Библиотека AR.js для работы с камерой телефона -->
+  <!-- A-Frame библиотека -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.3.0/aframe.min.js"></script>
+  
+  <!-- AR.js для AR функциональности -->
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-  <!-- Физический движок для A-Frame -->
+  
+  <!-- Физический движок -->
   <script src="https://cdn.jsdelivr.net/gh/n5ro/aframe-physics-system@v4.0.1/dist/aframe-physics-system.min.js"></script>
 
   <style>
-    /* Настройки интерфейса поверх AR-камеры */
-    body { margin: 0; overflow: hidden; font-family: sans-serif; }
-    #ui-container { position: absolute; top: 10px; left: 10px; z-index: 1000; color: white; text-shadow: 2px 2px 4px #000; pointer-events: none; }
-    #score-text { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
-    #gps-text { font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px; }
-    #game-over { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; font-size: 40px; color: #ffeb3b; text-shadow: 3px 3px 5px #000; background: rgba(0,0,0,0.8); padding: 30px; border-radius: 15px; text-align: center; }
+    body { 
+      margin: 0; 
+      overflow: hidden; 
+      font-family: 'Arial', sans-serif;
+      background: #000;
+    }
+    
+    #ui-container { 
+      position: absolute; 
+      top: 20px; 
+      left: 20px; 
+      z-index: 1000; 
+      color: white; 
+      text-shadow: 2px 2px 4px #000; 
+      pointer-events: none;
+      font-weight: bold;
+    }
+    
+    #score-text { 
+      font-size: 28px; 
+      margin-bottom: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 10px 15px;
+      border-radius: 8px;
+      border-left: 4px solid #ffeb3b;
+    }
+    
+    #status-text {
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      border-left: 4px solid #4caf50;
+    }
+    
+    #gps-text { 
+      font-size: 12px; 
+      background: rgba(0, 0, 0, 0.6); 
+      padding: 8px 12px; 
+      border-radius: 6px;
+      border-left: 4px solid #2196f3;
+      max-width: 280px;
+      word-wrap: break-word;
+    }
+    
+    #game-over { 
+      display: none; 
+      position: absolute; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%); 
+      z-index: 2000; 
+      font-size: 48px; 
+      color: #ffeb3b; 
+      text-shadow: 3px 3px 5px #000; 
+      background: rgba(0, 0, 0, 0.95); 
+      padding: 40px; 
+      border-radius: 15px; 
+      text-align: center;
+      border: 3px solid #ffeb3b;
+      animation: pulse 0.5s ease-in-out;
+    }
+    
+    #game-over-subtitle {
+      font-size: 24px;
+      margin-top: 15px;
+      color: #fff;
+    }
+    
+    #restart-btn {
+      margin-top: 20px;
+      padding: 12px 30px;
+      font-size: 18px;
+      background: #ffeb3b;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      pointer-events: all;
+    }
+    
+    #restart-btn:hover {
+      background: #fff;
+      transform: scale(1.05);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+    }
+    
+    .permission-warning {
+      display: none;
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: #ff9800;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 250px;
+      z-index: 1001;
+      font-size: 14px;
+    }
   </style>
 
   <script>
-    // Игровая логика
+    // Компонент управления игрой
     AFRAME.registerComponent('game-manager', {
       init: function () {
         this.score = 0;
-        this.maxScore = 5; // Сколько объектов надо собрать для конца игры
+        this.maxScore = 5;
+        this.gameActive = true;
+        this.isRespawning = false;
+        
         this.target = document.querySelector('#target-container');
         this.scoreUI = document.getElementById('score-text');
+        this.statusUI = document.getElementById('status-text');
         this.gameOverUI = document.getElementById('game-over');
-        this.clickSound = document.querySelector('#collect-sound');
-
-        // Обработчик клика (тапа) по объекту
-        this.target.addEventListener('click', () => {
-          this.score++;
-          this.scoreUI.innerText = `Очки: ${this.score}`;
-          this.clickSound.components.sound.playSound();
-
-          if (this.score >= this.maxScore) {
-            // Завершение игры
-            setTimeout(() => {
-              this.target.setAttribute('visible', 'false');
-              this.gameOverUI.style.display = 'block';
-            }, 200); // Ждем завершения анимации исчезновения
+        this.restartBtn = document.getElementById('restart-btn');
+        
+        // Инициализация звука с проверкой
+        this.setupAudio();
+        
+        // Обработчик клика на объект
+        this.target.addEventListener('click', () => this.handleTargetClick());
+        
+        // Кнопка перезагрузки
+        this.restartBtn.addEventListener('click', () => this.restartGame());
+        
+        this.updateUI();
+      },
+      
+      setupAudio: function() {
+        try {
+          const audioElement = document.querySelector('#pop-sound');
+          if (audioElement) {
+            // Проверяем, что аудио готово к воспроизведению
+            this.audioElement = audioElement;
           } else {
-            // Респаун объекта в случайном месте после сбора
-            setTimeout(() => {
-              this.target.removeAttribute('dynamic-body'); // Отключаем физику на момент переноса
-              
-              // Генерируем новые случайные координаты перед камерой
-              let x = (Math.random() - 0.5) * 4; 
-              let z = (Math.random() * -3) - 2; 
-              let y = 3; // Падает сверху
-
-              this.target.setAttribute('position', `${x} ${y} ${z}`);
-              this.target.setAttribute('scale', '1 1 1'); // Восстанавливаем масштаб после анимации
-              
-              // Включаем физику обратно (с задержкой, чтобы A-Frame успел обновить позицию)
-              setTimeout(() => {
-                this.target.setAttribute('dynamic-body', 'shape: box; mass: 1');
-              }, 50);
-
-            }, 200); 
+            console.warn('Аудио элемент не найден');
           }
-        });
+        } catch (e) {
+          console.error('Ошибка инициализации звука:', e);
+        }
+      },
+      
+      playCollectSound: function() {
+        try {
+          if (this.audioElement) {
+            // Создаём новый экземпляр для воспроизведения
+            const audio = this.audioElement.cloneNode();
+            audio.volume = 0.7;
+            audio.play().catch(err => console.warn('Не удалось воспроизвести звук:', err));
+          }
+        } catch (e) {
+          console.warn('Ошибка воспроизведения звука:', e);
+        }
+      },
+      
+      handleTargetClick: function() {
+        if (!this.gameActive || this.isRespawning) return;
+        
+        this.isRespawning = true;
+        this.score++;
+        this.playCollectSound();
+        this.updateUI();
+        
+        // Анимация сжатия
+        this.target.setAttribute('animation__shrink', 
+          'property: scale; startEvents: click; easing: easeInCubic; dur: 200; to: 0 0 0');
+        
+        if (this.score >= this.maxScore) {
+          // Игра окончена
+          setTimeout(() => {
+            this.endGame();
+          }, 200);
+        } else {
+          // Переспаун объекта
+          setTimeout(() => {
+            this.respawnTarget();
+          }, 200);
+        }
+      },
+      
+      respawnTarget: function() {
+        try {
+          // Отключаем физику перед переспауном
+          this.target.removeAttribute('dynamic-body');
+          
+          // Генерируем новую позицию
+          const x = (Math.random() - 0.5) * 6;      // -3 до 3
+          const z = (Math.random() * -4) - 1.5;     // -1.5 до -5.5
+          const y = 1 + Math.random() * 2.5;         // 1 до 3.5
+          
+          // Устанавливаем новую позицию и масштаб
+          this.target.setAttribute('position', `${x.toFixed(2)} ${y.toFixed(2)} ${z.toFixed(2)}`);
+          this.target.setAttribute('scale', '1 1 1');
+          
+          // Небольшая задержка перед включением физики
+          setTimeout(() => {
+            if (this.target) {
+              this.target.setAttribute('dynamic-body', 'shape: box; mass: 1');
+              this.isRespawning = false;
+            }
+          }, 50);
+        } catch (e) {
+          console.error('Ошибка при переспауне:', e);
+          this.isRespawning = false;
+        }
+      },
+      
+      endGame: function() {
+        this.gameActive = false;
+        this.target.setAttribute('visible', 'false');
+        this.gameOverUI.style.display = 'block';
+        this.statusUI.innerText = '✓ Игра окончена!';
+      },
+      
+      restartGame: function() {
+        this.score = 0;
+        this.gameActive = true;
+        this.isRespawning = false;
+        
+        // Скрываем экран окончания
+        this.gameOverUI.style.display = 'none';
+        
+        // Сбрасываем целевой объект
+        this.target.setAttribute('visible', 'true');
+        this.target.setAttribute('scale', '1 1 1');
+        this.target.setAttribute('position', '0 3 -3');
+        this.target.setAttribute('dynamic-body', 'shape: box; mass: 1');
+        
+        this.updateUI();
+        this.statusUI.innerText = '▶ Игра начата!';
+      },
+      
+      updateUI: function() {
+        this.scoreUI.innerText = `Очки: ${this.score} / ${this.maxScore}`;
       }
     });
 
-    // Работа с GPS-координатами (Вывод на экран)
-    window.onload = () => {
+    // Инициализация при загрузке страницы
+    window.addEventListener('load', function() {
+      initializeGPS();
+      checkPermissions();
+    });
+    
+    function initializeGPS() {
       const gpsUI = document.getElementById('gps-text');
+      const statusUI = document.getElementById('status-text');
+      
       if ('geolocation' in navigator) {
+        statusUI.innerText = '📍 GPS: поиск координат...';
+        
         navigator.geolocation.watchPosition(
           (position) => {
             const lat = position.coords.latitude.toFixed(5);
             const lng = position.coords.longitude.toFixed(5);
-            gpsUI.innerText = `GPS: Широта ${lat}, Долгота ${lng}`;
+            const accuracy = position.coords.accuracy.toFixed(0);
+            
+            gpsUI.innerText = `📍 Широта: ${lat}\n📍 Долгота: ${lng}\n📊 Точность: ±${accuracy}м`;
+            statusUI.innerText = '✓ GPS активен';
           },
-          (error) => { gpsUI.innerText = "Ошибка GPS: " + error.message; },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+          (error) => {
+            let errorMsg = 'GPS ошибка';
+            switch(error.code) {
+              case error.PERMISSION_DENIED:
+                errorMsg = 'GPS отключена';
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMsg = 'Позиция недоступна';
+                break;
+              case error.TIMEOUT:
+                errorMsg = 'Тайм-аут GPS';
+                break;
+            }
+            gpsUI.innerText = `❌ ${errorMsg}`;
+            statusUI.innerText = '⚠ GPS не активна';
+          },
+          { 
+            enableHighAccuracy: true, 
+            maximumAge: 0, 
+            timeout: 10000 
+          }
         );
       } else {
-        gpsUI.innerText = "GPS не поддерживается на вашем устройстве";
+        gpsUI.innerText = '❌ GPS не поддерживается';
+        statusUI.innerText = '⚠ GPS недоступна';
       }
-    };
+    }
+    
+    function checkPermissions() {
+      const warningBox = document.querySelector('.permission-warning');
+      
+      // Проверяем камеру
+      if (!navigator.mediaDevices) {
+        warningBox.style.display = 'block';
+        warningBox.innerText = '⚠ Видеокамера может быть недоступна';
+      }
+    }
   </script>
 </head>
 
 <body>
-  <!-- HTML Интерфейс (Счетчик, GPS, Конец игры) -->
   <div id="ui-container">
-    <div id="score-text">Очки: 0</div>
-    <div id="gps-text">Поиск GPS координат...</div>
+    <div id="status-text">▶ Инициализация...</div>
+    <div id="score-text">Очки: 0 / 5</div>
+    <div id="gps-text">📍 GPS: загрузка...</div>
   </div>
-  <div id="game-over">ИГРА ОКОНЧЕНА!<br><span style="font-size: 20px;">Вы собрали всё!</span></div>
+  
+  <div class="permission-warning"></div>
+  
+  <div id="game-over">
+    🎉 ИГРА ОКОНЧЕНА! 🎉
+    <div id="game-over-subtitle">Вы собрали всё!</div>
+    <button id="restart-btn">Играть снова</button>
+  </div>
 
-  <!-- A-Frame Сцена с AR.js (sourceType: webcam включает камеру устройства) -->
   <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;" physics="debug: false" cursor="rayOrigin: mouse">
     
-    <!-- Загрузка ресурсов (Assets) -->
     <a-assets>
-      <!-- Изображение для текстуры -->
+      <!-- Текстура земли -->
       <img id="ground-tex" src="https://i.imgur.com/mCQhcAQ.jpeg" crossorigin="anonymous">
-      <!-- Аудио файл -->
-      <audio id="pop-sound" src="https://cdn.aframe.io/basic-guide/audio/backgroundnoise.wav" crossorigin="anonymous"></audio>
-      <!-- Наша Blender-модель -->
-      <a-asset-item id="my-model" src="model.glb"></a-asset-item>
+      
+      <!-- Звук сбора объекта (из надежного источника Google) -->
+      <audio id="pop-sound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" crossorigin="anonymous"></audio>
     </a-assets>
 
-    <!-- Небо (Сделано полупрозрачным, чтобы было видно камеру AR, но формально a-sky присутствует) -->
+    <!-- Небо -->
     <a-sky color="#87CEEB" opacity="0.2"></a-sky>
 
-    <!-- Свет -->
-    <a-light type="ambient" color="#ffffff" intensity="0.7"></a-light>
-    <a-light type="directional" position="-1 2 1" intensity="0.5"></a-light>
+    <!-- Освещение -->
+    <a-light type="ambient" color="#ffffff" intensity="0.8"></a-light>
+    <a-light type="directional" position="-1 2 1" intensity="0.6"></a-light>
 
-    <!-- Камера -->
-    <a-camera position="0 1.6 0" look-controls>
-      <!-- Текст в 3D мире, привязанный к экрану -->
-      <a-text value="Catch the items!" position="-0.5 0.5 -2" color="#ff0000" scale="0.5 0.5 0.5"></a-text>
+    <!-- Камера с инструкцией -->
+    <a-camera position="0 1.6 0" look-controls wasd-controls>
+      <a-text value="Нажмите на объект чтобы поймать его!" 
+              position="-0.7 0.3 -2" 
+              color="#ff6b6b" 
+              scale="0.4 0.4 0.4"
+              align="center"></a-text>
     </a-camera>
 
-    <!-- Земля (Физика: static-body, Текстура: src) -->
-    <a-plane src="#ground-tex" rotation="-90 0 0" width="10" height="10" position="0 0 -2" static-body opacity="0.8"></a-plane>
+    <!-- Земля (статичная) -->
+    <a-plane src="#ground-tex" 
+             rotation="-90 0 0" 
+             width="20" 
+             height="20" 
+             position="0 -0.5 -2" 
+             static-body 
+             opacity="0.8"></a-plane>
 
-    <!-- ЦЕЛЕВОЙ ОБЪЕКТ ДЛЯ СБОРА -->
-    <!-- Трансформация предков и потомков: Контейнер отвечает за физику и позицию -->
-    <a-entity id="target-container" position="0 3 -3" 
-              dynamic-body="shape: box; mass: 1" 
+    <!-- Целевой объект с динамической физикой -->
+    <a-entity id="target-container" 
+              position="0 3 -3" 
+              dynamic-body="shape: box; mass: 1; linearDamping: 0.3; angularDamping: 0.3" 
               game-manager
-              animation__click="property: scale; startEvents: click; easing: easeInCubic; dur: 200; to: 0 0 0">
+              cursor="fuse: false;">
       
-      <!-- Звук при клике -->
-      <a-entity id="collect-sound" sound="src: #pop-sound"></a-entity>
-
-      <!-- Дочерний объект отвечает за вращение вокруг своей оси -->
+      <!-- Вращающийся контейнер -->
       <a-entity animation="property: rotation; to: 0 360 0; loop: true; dur: 2500; easing: linear">
         
-        <!-- Сама 3D модель (вложена в вращающийся контейнер) -->
-        <a-entity gltf-model="#my-model" scale="0.5 0.5 0.5" position="0 0 0">
-          <!-- Fallback: Если модель не загрузится (нет файла model.glb), покажется этот кубик -->
-          <a-box color="gold" scale="0.5 0.5 0.5"></a-box>
-        </a-entity>
+        <!-- Золотой куб (fallback если модель не загружается) -->
+        <a-box color="#FFD700" 
+               scale="0.6 0.6 0.6" 
+               position="0 0 0"
+               metallic="true"
+               roughness="0.2"></a-box>
         
+        <!-- Дополнительная сфера для визуального интереса -->
+        <a-sphere color="#FFA500" 
+                  scale="0.3 0.3 0.3" 
+                  position="0.5 0 0"
+                  metallic="true"></a-sphere>
       </a-entity>
     </a-entity>
+
+    <!-- Стены для удержания объекта в сцене (опционально) -->
+    <a-plane color="#444" 
+             static-body 
+             width="20" 
+             height="5" 
+             position="0 2.5 -12"
+             opacity="0.2"></a-plane>
 
   </a-scene>
 </body>
