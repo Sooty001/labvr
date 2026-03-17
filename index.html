@@ -60,7 +60,7 @@
       G.state = 'playing'; G.hp = 5; G.kills = 0;
       G.wave = 1; G.waveKills = 0; G.waveTarget = 6; G.spawnInterval = 1800;
 
-      document.querySelectorAll('.enemy').forEach(e => e.remove());
+      document.querySelectorAll('.zombie-root').forEach(e => e.remove());
       document.querySelector('#startMenu').setAttribute('position', '0 -500 0');
       document.querySelector('#gameOverMenu').setAttribute('position', '0 -500 0');
       document.getElementById('hud').style.display = 'block';
@@ -99,7 +99,7 @@
     window.endGame = function () {
       let G = window.G;
       G.state = 'gameover';
-      document.querySelectorAll('.enemy').forEach(e => e.remove());
+      document.querySelectorAll('.zombie-root').forEach(e => e.remove());
       document.getElementById('hud').style.display = 'none';
       document.querySelector('#txt-final').setAttribute('value',
         'Kills: ' + G.kills + '\nWave: ' + G.wave);
@@ -146,8 +146,18 @@
         let x = Math.sin(angle) * r, z = Math.cos(angle) * r;
 
         let z_el = document.createElement('a-entity');
-        z_el.setAttribute('class', 'enemy');
+        z_el.setAttribute('class', 'zombie-root');
         z_el.setAttribute('position', `${x} 0 ${z}`);
+
+        // Невидимый хитбокс — raycaster попадает именно в него
+        let hitbox = document.createElement('a-box');
+        hitbox.setAttribute('class', 'enemy');
+        hitbox.setAttribute('position', '0 1.0 0');
+        hitbox.setAttribute('width', '0.8');
+        hitbox.setAttribute('height', '2.0');
+        hitbox.setAttribute('depth', '0.8');
+        hitbox.setAttribute('material', 'opacity: 0; transparent: true; depthWrite: false');
+        z_el.appendChild(hitbox);
 
         // ── ТЕЛО ЗОМБИ (только примитивы) ──
         // Туловище
@@ -261,29 +271,26 @@
         if (hit.id === 'btn-start'   && G.state === 'menu')     { window.startGame(); return; }
         if (hit.id === 'btn-restart' && G.state === 'gameover') { window.startGame(); return; }
 
-        // Попали в часть зомби — идём вверх до .enemy
+        // hit — это хитбокс .enemy, его родитель — zombie-root с data-hp
         if (G.state !== 'playing') return;
-        let el = hit;
-        while (el && !el.classList.contains('enemy')) {
-          el = el.parentEl || el.parentNode;
-        }
-        if (!el || !el.classList.contains('enemy')) return;
+        if (!hit.classList.contains('enemy')) return;
 
-        let hp = parseInt(el.getAttribute('data-hp') || '1') - 1;
-        el.setAttribute('data-hp', hp);
+        // Корень зомби — parentElement хитбокса
+        let root = hit.parentElement || hit.parentNode;
+        if (!root) return;
 
-        // Покраснение при попадании
-        el.querySelectorAll('a-box').forEach(b => b.setAttribute('color', '#882200'));
-        setTimeout(() => {
-          if (!el.parentNode) return;
-          // Восстанавливаем цвета
-          let boxes = el.querySelectorAll('a-box');
-          let colors = ['#3a5a2a','#5a7a3a','#2a3a1a','#2a3a1a','#3a5a2a','#3a5a2a'];
-          boxes.forEach((b,i) => b.setAttribute('color', colors[i] || '#3a5a2a'));
-        }, 120);
+        let hp = parseInt(root.getAttribute('data-hp') || '1') - 1;
+        root.setAttribute('data-hp', hp);
+
+        // Вспышка попадания — все цветные боксы краснеют
+        root.querySelectorAll('a-box:not([class])').forEach(b => {
+          let orig = b.getAttribute('color');
+          b.setAttribute('color', '#cc2200');
+          setTimeout(() => { if (b.parentNode) b.setAttribute('color', orig); }, 130);
+        });
 
         if (hp <= 0) {
-          el.remove();
+          root.parentNode.removeChild(root);
           G.kills++; G.waveKills++;
           updateHUD();
           if (G.waveKills >= G.waveTarget) window.nextWave();
