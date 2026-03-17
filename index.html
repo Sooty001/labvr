@@ -161,15 +161,15 @@
         z_el.appendChild(hitbox);
 
         // ── МОДЕЛЬ ЗОМБИ из Блендера ──
+        // Оборачиваем модель в entity с поворотом 180° — 
+        // zombie-move крутит корневой объект, а модель внутри смотрит вперёд
+        let modelWrap = document.createElement('a-entity');
+        modelWrap.setAttribute('rotation', '0 180 0');
         let model = document.createElement('a-entity');
         model.setAttribute('gltf-model', '#zombie-model');
-        model.setAttribute('scale',    '1 1 1');
-        model.setAttribute('position', '0 0 0');
-        model.setAttribute('rotation', '0 180 0'); // разворот — в Blender зомби смотрит в -Y, в A-Frame нужно +Z
-        // Покачивание при ходьбе
-        model.setAttribute('animation__walk',
-          'property: rotation; from: 0 0 -2; to: 0 0 2; dir: alternate; dur: 350; loop: true; easing: easeInOutSine');
-        z_el.appendChild(model);
+        model.setAttribute('scale', '1 1 1');
+        modelWrap.appendChild(model);
+        z_el.appendChild(modelWrap);
 
         // HP: 1 + бонус за волну
         let hp = 1 + Math.floor(G.wave / 2);
@@ -187,9 +187,11 @@
     AFRAME.registerComponent('zombie-move', {
       init: function () {
         this.speed = 0.025 + window.G.wave * 0.004;
+        this.dead  = false;  // флаг чтобы не удалять дважды
       },
       tick: function () {
         if (window.G.state !== 'playing') return;
+        if (this.dead) return;
         let p = this.el.object3D.position;
         let dx = -p.x, dz = -p.z;
         let d  = Math.sqrt(dx*dx + dz*dz);
@@ -197,10 +199,12 @@
         let s = this.speed + window.G.wave * 0.003;
         p.x += (dx/d) * s;
         p.z += (dz/d) * s;
+        // Поворачиваем корневой объект — модель внутри обёртки уже смотрит в нужную сторону
         this.el.object3D.rotation.y = Math.atan2(dx, dz);
         if (d < 1.4) {
+          this.dead = true;
           window.damageTower();
-          this.el.remove();
+          if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
         }
       }
     });
@@ -250,7 +254,8 @@
         }
 
         if (hp <= 0) {
-          root.parentNode.removeChild(root);
+          root.setAttribute('data-hp', '-1'); // блокируем повторное попадание
+          if (root.parentNode) root.parentNode.removeChild(root);
           G.kills++; G.waveKills++;
           updateHUD();
           if (G.waveKills >= G.waveTarget) window.nextWave();
