@@ -141,7 +141,8 @@
       },
       spawn: function () {
         let G = window.G;
-        let angle  = Math.random() * Math.PI * 2;
+        // Спереди и с боков: ±120° от направления взгляда (-Z)
+        let angle = (Math.PI / 3) + Math.random() * (4 * Math.PI / 3);
         let r      = 16;
         let x = Math.sin(angle) * r, z = Math.cos(angle) * r;
 
@@ -320,12 +321,12 @@
     </a-assets>
 
     <!-- НЕБО -->
-    <a-sky color="#0d0500"></a-sky>
+    <a-sky color="#3a1a00"></a-sky>
 
     <!-- ЗЕМЛЯ -->
     <a-plane id="ground" static-body
              rotation="-90 0 0" width="80" height="80"
-             color="#1a1008" position="0 0 0"></a-plane>
+             color="#2e1e0a" position="0 0 0"></a-plane>
 
     <!-- БАШНЯ -->
     <a-entity position="0 0 0">
@@ -408,9 +409,9 @@
     </a-entity>
 
     <!-- СВЕТ -->
-    <a-entity light="type: ambient; color:#2a1000; intensity:1.4"></a-entity>
-    <a-entity light="type: point; color:#ff8800; intensity:2; distance:12" position="0 4 0"></a-entity>
-    <a-entity light="type: directional; color:#ff4400; intensity:0.4" position="-6 10 -20"></a-entity>
+    <a-entity light="type: ambient; color:#cc7733; intensity:1.2"></a-entity>
+    <a-entity light="type: point; color:#ffaa44; intensity:2.5; distance:20" position="0 4 0"></a-entity>
+    <a-entity light="type: directional; color:#ffcc88; intensity:0.8" position="-4 8 5"></a-entity>
 
     <!-- МЕНЮ СТАРТА -->
     <a-entity id="startMenu" position="0 1.5 -4">
