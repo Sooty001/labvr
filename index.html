@@ -165,6 +165,7 @@
         model.setAttribute('gltf-model', '#zombie-model');
         model.setAttribute('scale',    '1 1 1');
         model.setAttribute('position', '0 0 0');
+        model.setAttribute('rotation', '0 180 0'); // разворот — в Blender зомби смотрит в -Y, в A-Frame нужно +Z
         // Покачивание при ходьбе
         model.setAttribute('animation__walk',
           'property: rotation; from: 0 0 -2; to: 0 0 2; dir: alternate; dur: 350; loop: true; easing: easeInOutSine');
@@ -329,16 +330,6 @@
                 animation="property:scale; from:1 1 1; to:1.2 1.5 1.2; dir:alternate; dur:350; loop:true"></a-sphere>
     </a-entity>
 
-    <!-- ПИСТОЛЕТ (прикреплён к камере) -->
-    <a-entity id="player-gun" position="0.28 -0.22 -0.55">
-      <a-box position="0 0 0"       width="0.055" height="0.055" depth="0.32" color="#1a1a1a"></a-box>
-      <a-box position="0 -0.04 0.1" width="0.09"  height="0.11"  depth="0.18" color="#2a2a2a"></a-box>
-      <a-box position="0 -0.11 0.14" width="0.065" height="0.09" depth="0.065" color="#333"></a-box>
-      <a-sphere id="muzzle" position="0 0 -0.18" radius="0.045" color="#ffff00"
-                material="emissive:#ffcc00; emissiveIntensity:2; opacity:0"
-                animation__flash="property: material.opacity; from:1; to:0; dur:70; startEvents:flash"></a-sphere>
-    </a-entity>
-
     <!-- КАМЕРА + ПРИЦЕЛ -->
     <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity id="cursor"
@@ -355,15 +346,15 @@
       <a-box position="0  0.038 -1" width="0.002" height="0.01" depth="0.001" material="color:#ff3300;shader:flat"></a-box>
       <a-box position="0 -0.038 -1" width="0.002" height="0.01" depth="0.001" material="color:#ff3300;shader:flat"></a-box>
 
-      <!-- Пистолет привязан к камере -->
-      <a-entity position="0.28 -0.22 -0.55">
-        <a-box position="0 0 0"        width="0.055" height="0.055" depth="0.32" color="#1a1a1a"></a-box>
-        <a-box position="0 -0.04 0.1"  width="0.09"  height="0.11"  depth="0.18" color="#2a2a2a"></a-box>
-        <a-box position="0 -0.11 0.14" width="0.065" height="0.09"  depth="0.065" color="#333"></a-box>
-        <a-sphere position="0 0 -0.18" radius="0.045" color="#ffff00"
-                  material="emissive:#ffcc00; emissiveIntensity:2; opacity:0"
-                  animation__flash="property: material.opacity; from:1; to:0; dur:70; startEvents:flash"
-                  id="muzzle2"></a-sphere>
+      <!-- Пистолет — модель из Блендера -->
+      <a-entity id="gun-attach"
+                position="0.28 -0.22 -0.55"
+                rotation="0 180 0"
+                animation__recoil="property: position; from: 0.28 -0.22 -0.55; to: 0.28 -0.20 -0.50; dur: 60; dir: alternate; repeat: 1; startEvents: fire">
+        <a-entity gltf-model="#gun-model" scale="1 1 1"></a-entity>
+        <a-sphere id="muzzle2" position="0 0 0.18" radius="0.04" color="#ffff00"
+                  material="emissive:#ffcc00; emissiveIntensity:3; opacity:0"
+                  animation__flash="property: material.opacity; from:1; to:0; dur:70; startEvents:flash"></a-sphere>
       </a-entity>
     </a-entity>
 
