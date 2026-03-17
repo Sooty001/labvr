@@ -2,401 +2,356 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Zombie Survival</title>
+  <title>Зомби Выживание</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@v4.2.2/dist/aframe-physics-system.min.js"></script>
-
   <style>
-    /* Простой оверлей HUD поверх сцены */
-    #hud {
-      display: none;
-      position: fixed; top: 0; left: 0; right: 0;
-      pointer-events: none; z-index: 10;
-      font-family: 'Courier New', monospace;
-    }
-    #hud-bar {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 14px 20px;
-      background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
-    }
-    .hud-item { color: #fff; font-size: 22px; font-weight: bold; text-shadow: 0 0 8px #f60; }
-    #hp-hearts { font-size: 20px; letter-spacing: 2px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { overflow: hidden; font-family: 'Courier New', monospace; }
 
-    /* Анонс волны */
+    /* ── ПРИЦЕЛ ── */
+    #crosshair {
+      display: none; position: fixed;
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 36px; height: 36px; pointer-events: none; z-index: 10;
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute; background: rgba(255,60,0,.9);
+    }
+    #crosshair::before { width: 2px; height: 100%; left: 50%; margin-left: -1px; }
+    #crosshair::after  { width: 100%; height: 2px; top: 50%; margin-top: -1px; }
+    #crosshair-ring {
+      display: none; position: fixed;
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 52px; height: 52px;
+      border: 2px solid rgba(255,60,0,.7); border-radius: 50%;
+      pointer-events: none; z-index: 10;
+    }
+
+    /* ── HUD (верх) ── */
+    #hud {
+      display: none; position: fixed; top: 0; left: 0; right: 0;
+      padding: 14px 18px;
+      background: linear-gradient(to bottom, rgba(0,0,0,.7), transparent);
+      display: none; justify-content: space-between; align-items: center;
+      pointer-events: none; z-index: 10;
+    }
+    .hi { color: #fff; font-size: 20px; font-weight: bold; text-shadow: 0 0 8px #f60; }
+
+    /* ── ПИСТОЛЕТ (правый нижний угол) ── */
+    #gun-ui {
+      display: none; position: fixed; bottom: 24px; right: 20px;
+      width: 120px; height: 48px; pointer-events: none; z-index: 10;
+    }
+    /* Нарисован чистым CSS */
+    #gun-barrel  { position: absolute; right: 0;   bottom: 22px; width: 74px; height: 10px; background: #222; border-radius: 3px 5px 5px 3px; }
+    #gun-body    { position: absolute; right: 20px; bottom: 10px; width: 46px; height: 22px; background: #333; border-radius: 4px; }
+    #gun-grip    { position: absolute; right: 44px; bottom: 0;    width: 18px; height: 26px; background: #2a2a2a; border-radius: 0 0 4px 4px; transform: skewX(8deg); }
+    #gun-trigger { position: absolute; right: 56px; bottom: 12px; width: 6px;  height: 12px; background: #444; border-radius: 2px; transform: rotate(15deg); }
+    #gun-flash   { position: absolute; right: -8px; bottom: 19px; width: 16px; height: 16px; background: #ffcc00; border-radius: 50%; opacity: 0; transition: opacity .05s; box-shadow: 0 0 10px #ffaa00; }
+
+    /* ── АНОНС ВОЛНЫ ── */
     #wave-banner {
       display: none; position: fixed;
-      top: 50%; left: 50%; transform: translate(-50%, -50%);
-      color: #ff3300; font-size: 40px; font-weight: bold;
-      font-family: 'Courier New', monospace;
-      text-shadow: 0 0 20px #ff0000;
-      pointer-events: none; z-index: 20;
-      animation: pop 0.3s ease-out;
+      top: 40%; left: 50%; transform: translate(-50%,-50%);
+      color: #ff3300; font-size: 36px; font-weight: bold;
+      text-shadow: 0 0 16px red; pointer-events: none; z-index: 20;
+      animation: pop .3s ease-out;
     }
-    @keyframes pop { from { transform: translate(-50%,-50%) scale(0.4); } to { transform: translate(-50%,-50%) scale(1); } }
+    @keyframes pop { from{transform:translate(-50%,-50%) scale(.3)} to{transform:translate(-50%,-50%) scale(1)} }
 
-    /* Флэш урона */
-    #dmg-flash {
-      display: none; position: fixed; inset: 0;
-      background: rgba(255,0,0,0.35);
-      pointer-events: none; z-index: 15;
+    /* ── ФЛЭШ УРОНА ── */
+    #dmg-flash { display:none; position:fixed; inset:0; background:rgba(255,0,0,.35); pointer-events:none; z-index:15; }
+
+    /* ── ОВЕРЛЕЙ МЕНЮ (общий) ── */
+    .screen {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.78);
+      z-index: 30; gap: 16px; padding: 30px;
+      text-align: center;
     }
+    .screen h1  { font-size: 32px; font-weight: bold; color: #ff3300; text-shadow: 0 0 12px #ff0000; letter-spacing: 2px; }
+    .screen p   { font-size: 16px; color: #cc9966; max-width: 280px; line-height: 1.5; }
+    .screen .score-big { font-size: 52px; font-weight: bold; color: #ffcc44; }
+    .screen .sub { font-size: 18px; color: #cc9966; }
+    .btn {
+      margin-top: 8px; padding: 16px 48px;
+      font-size: 22px; font-weight: bold; font-family: 'Courier New', monospace;
+      background: #881100; color: #fff;
+      border: 2px solid #ff3300; border-radius: 8px;
+      cursor: pointer; letter-spacing: 1px;
+      animation: pulse 1s ease-in-out infinite alternate;
+    }
+    @keyframes pulse { from{transform:scale(1)} to{transform:scale(1.04)} }
   </style>
 
   <script>
-    // ── СОСТОЯНИЕ ─────────────────────────────────────────
-    window.G = {
-      state:    'menu',   // menu | playing | gameover
-      hp:       5,
-      kills:    0,
-      wave:     1,
-      waveKills:    0,
-      waveTarget:   6,     // убить столько → след. волна
-      spawnInterval: 1800,
-    };
+    const G = window.G = { state:'menu', hp:5, kills:0, wave:1, waveKills:0, waveTarget:6 };
+    const $  = id  => document.getElementById(id);
+    const $$ = sel => document.querySelector(sel);
+    const sc = ()  => $$('a-scene');
 
-    // ── СТАРТ ─────────────────────────────────────────────
-    window.startGame = function () {
-      let G = window.G;
-      G.state = 'playing'; G.hp = 5; G.kills = 0;
-      G.wave = 1; G.waveKills = 0; G.waveTarget = 6; G.spawnInterval = 1800;
-
-      document.querySelectorAll('.zombie-root').forEach(e => e.remove());
-      document.querySelector('#startMenu').setAttribute('position', '0 -500 0');
-      document.querySelector('#gameOverMenu').setAttribute('position', '0 -500 0');
-      document.getElementById('hud').style.display = 'block';
-      updateHUD();
-
-      let sc = document.querySelector('a-scene');
-      if (sc.components.spawner) {
-        sc.components.spawner.timer = 0;
-        sc.components.spawner.interval = G.spawnInterval;
-      }
-    };
-
-    // ── УРОН БАШНЕ ────────────────────────────────────────
-    window.damageTower = function () {
-      if (window.G.state !== 'playing') return;
-      window.G.hp--;
-      showFlash();
-      updateHUD();
-      if (window.G.hp <= 0) endGame();
-    };
-
-    // ── СЛЕДУЮЩАЯ ВОЛНА ───────────────────────────────────
-    window.nextWave = function () {
-      let G = window.G;
-      G.wave++;
-      G.waveKills = 0;
-      G.waveTarget = 6 + G.wave * 2;
-      G.spawnInterval = Math.max(500, 1800 - G.wave * 120);
-      let sc = document.querySelector('a-scene');
-      if (sc.components.spawner) sc.components.spawner.interval = G.spawnInterval;
-      showWaveBanner('⚠ WAVE ' + G.wave);
-      updateHUD();
-    };
-
-    // ── КОНЕЦ ─────────────────────────────────────────────
-    window.endGame = function () {
-      let G = window.G;
-      G.state = 'gameover';
-      document.querySelectorAll('.zombie-root').forEach(e => e.remove());
-      document.getElementById('hud').style.display = 'none';
-      document.querySelector('#txt-final').setAttribute('value',
-        'Kills: ' + G.kills + '\nWave: ' + G.wave);
-      document.querySelector('#gameOverMenu').setAttribute('position', '0 1.5 -4');
-    };
-
-    // ── HUD ───────────────────────────────────────────────
     function updateHUD() {
-      let G = window.G;
-      document.getElementById('hud-kills').textContent = '💀 ' + G.kills;
-      document.getElementById('hud-wave').textContent  = 'WAVE ' + G.wave;
-      document.getElementById('hp-hearts').textContent = '❤️'.repeat(Math.max(0, G.hp));
+      $('hud-kills').textContent = '💀 ' + G.kills;
+      $('hud-wave').textContent  = 'ВОЛНА ' + G.wave;
+      $('hp-hearts').textContent = '❤️'.repeat(Math.max(0, G.hp));
     }
+
     function showFlash() {
-      let f = document.getElementById('dmg-flash');
-      f.style.display = 'block';
-      setTimeout(() => f.style.display = 'none', 180);
+      $('dmg-flash').style.display = 'block';
+      setTimeout(() => $('dmg-flash').style.display = 'none', 180);
     }
-    function showWaveBanner(txt) {
-      let b = document.getElementById('wave-banner');
-      b.textContent = txt;
-      b.style.display = 'block';
+
+    function showBanner(txt) {
+      const b = $('wave-banner');
+      b.textContent = txt; b.style.display = 'block';
       setTimeout(() => b.style.display = 'none', 1800);
     }
 
-    // ════════════════════════════════════════════════════
-    // A-FRAME КОМПОНЕНТЫ
-    // ════════════════════════════════════════════════════
+    function gunFlash() {
+      $('gun-flash').style.opacity = '1';
+      setTimeout(() => $('gun-flash').style.opacity = '0', 80);
+    }
 
-    // 1. СПАВНЕР
+    window.startGame = function() {
+      Object.assign(G, { state:'playing', hp:5, kills:0, wave:1, waveKills:0, waveTarget:6 });
+      document.querySelectorAll('.zr').forEach(e => e.remove());
+      $('screen-start').style.display    = 'none';
+      $('screen-gameover').style.display = 'none';
+
+      // Показываем игровой UI
+      const hud = $('hud');
+      hud.style.display = 'flex';
+      $('crosshair').style.display      = 'block';
+      $('crosshair-ring').style.display = 'block';
+      $('gun-ui').style.display         = 'block';
+
+      updateHUD();
+      const sp = sc().components.spawner;
+      if (sp) { sp.timer = 0; sp.interval = 1800; }
+    };
+
+    window.damageTower = function() {
+      if (G.state !== 'playing') return;
+      if (--G.hp <= 0) endGame();
+      else { showFlash(); updateHUD(); }
+    };
+
+    window.nextWave = function() {
+      G.wave++; G.waveKills = 0;
+      G.waveTarget = 6 + G.wave * 2;
+      const sp = sc().components.spawner;
+      if (sp) sp.interval = Math.max(500, 1800 - G.wave * 120);
+      showBanner('⚠ ВОЛНА ' + G.wave);
+      updateHUD();
+    };
+
+    function endGame() {
+      G.state = 'gameover';
+      document.querySelectorAll('.zr').forEach(e => e.remove());
+
+      // Скрываем игровой UI
+      $('hud').style.display             = 'none';
+      $('crosshair').style.display       = 'none';
+      $('crosshair-ring').style.display  = 'none';
+      $('gun-ui').style.display          = 'none';
+
+      $('go-kills').textContent = G.kills;
+      $('go-wave').textContent  = 'Волна: ' + G.wave;
+      $('screen-gameover').style.display = 'flex';
+    }
+
+    // ── КОМПОНЕНТЫ ──
     AFRAME.registerComponent('spawner', {
-      init: function () { this.timer = 0; this.interval = 1800; },
-      tick: function (t, dt) {
-        if (window.G.state !== 'playing') return;
-        this.timer += dt;
-        if (this.timer < this.interval) return;
+      init() { this.timer = 0; this.interval = 1800; },
+      tick(t, dt) {
+        if (G.state !== 'playing') return;
+        if ((this.timer += dt) < this.interval) return;
         this.timer = 0;
-        this.spawn();
-      },
-      spawn: function () {
-        let G = window.G;
-        // Спереди и с боков: ±120° от направления взгляда (-Z)
-        let angle = (Math.PI / 3) + Math.random() * (4 * Math.PI / 3);
-        let r      = 16;
-        let x = Math.sin(angle) * r, z = Math.cos(angle) * r;
 
-        let z_el = document.createElement('a-entity');
-        z_el.setAttribute('class', 'zombie-root');
-        z_el.setAttribute('position', `${x} 0 ${z}`);
+        const a = Math.PI/3 + Math.random() * 4*Math.PI/3;
+        const x = Math.sin(a)*16, z = Math.cos(a)*16;
 
-        // Невидимый хитбокс — raycaster попадает именно в него
-        let hitbox = document.createElement('a-box');
-        hitbox.setAttribute('class', 'enemy');
-        hitbox.setAttribute('position', '0 1.0 0');
-        hitbox.setAttribute('width', '0.8');
-        hitbox.setAttribute('height', '2.0');
-        hitbox.setAttribute('depth', '0.8');
-        hitbox.setAttribute('material', 'opacity: 0; transparent: true; depthWrite: false');
-        z_el.appendChild(hitbox);
+        const root = document.createElement('a-entity');
+        root.setAttribute('class', 'zr');
+        root.setAttribute('position', `${x} 0 ${z}`);
 
-        // ── МОДЕЛЬ ЗОМБИ из Блендера ──
-        // Оборачиваем модель в entity с поворотом 180° — 
-        // zombie-move крутит корневой объект, а модель внутри смотрит вперёд
-        let modelWrap = document.createElement('a-entity');
-        modelWrap.setAttribute('rotation', '0 180 0');
-        let model = document.createElement('a-entity');
-        model.setAttribute('gltf-model', '#zombie-model');
-        model.setAttribute('scale', '1 1 1');
-        modelWrap.appendChild(model);
-        z_el.appendChild(modelWrap);
+        const hb = document.createElement('a-box');
+        hb.setAttribute('class', 'enemy');
+        hb.setAttribute('position', '0 1 0');
+        hb.setAttribute('width','0.8'); hb.setAttribute('height','2'); hb.setAttribute('depth','0.8');
+        hb.setAttribute('material','opacity:0;transparent:true;depthWrite:false');
+        root.appendChild(hb);
 
-        // HP: 1 + бонус за волну
-        let hp = 1 + Math.floor(G.wave / 2);
-        z_el.setAttribute('data-hp', hp);
-        z_el.setAttribute('data-maxhp', hp);
+        const wrap = document.createElement('a-entity');
+        wrap.setAttribute('rotation','0 180 0');
+        const mdl = document.createElement('a-entity');
+        mdl.setAttribute('gltf-model','#zombie-model');
+        wrap.appendChild(mdl);
+        root.appendChild(wrap);
 
-        // Компонент движения
-        z_el.setAttribute('zombie-move', '');
-
-        this.el.sceneEl.appendChild(z_el);
+        root.setAttribute('data-hp', 1 + Math.floor(G.wave/2));
+        root.setAttribute('zombie-move','');
+        sc().appendChild(root);
       }
     });
 
-    // 2. ДВИЖЕНИЕ ЗОМБИ
     AFRAME.registerComponent('zombie-move', {
-      init: function () {
-        this.speed = 0.025 + window.G.wave * 0.004;
-        this.dead  = false;  // флаг чтобы не удалять дважды
-      },
-      tick: function () {
-        if (window.G.state !== 'playing') return;
-        if (this.dead) return;
-        let p = this.el.object3D.position;
-        let dx = -p.x, dz = -p.z;
-        let d  = Math.sqrt(dx*dx + dz*dz);
+      init() { this.speed = 0.025 + G.wave*0.004; this.dead = false; },
+      tick() {
+        if (G.state !== 'playing' || this.dead) return;
+        const p = this.el.object3D.position;
+        const dx = -p.x, dz = -p.z;
+        const d = Math.sqrt(dx*dx + dz*dz);
         if (d < 0.01) return;
-        let s = this.speed + window.G.wave * 0.003;
-        p.x += (dx/d) * s;
-        p.z += (dz/d) * s;
-        // Поворачиваем корневой объект — модель внутри обёртки уже смотрит в нужную сторону
+        const s = this.speed + G.wave*0.003;
+        p.x += dx/d*s; p.z += dz/d*s;
         this.el.object3D.rotation.y = Math.atan2(dx, dz);
         if (d < 1.4) {
           this.dead = true;
-          window.damageTower();
-          if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
+          damageTower();
+          this.el.parentNode?.removeChild(this.el);
         }
       }
     });
 
-    // 3. СТРЕЛЬБА (тап/клик)
     AFRAME.registerComponent('shooter', {
-      init: function () {
-        window.addEventListener('mousedown',  this.fire.bind(this));
-        window.addEventListener('touchstart', this.fire.bind(this));
+      init() {
+        const fire = this.fire.bind(this);
+        window.addEventListener('mousedown', fire);
+        window.addEventListener('touchstart', fire);
       },
-      fire: function () {
-        let G = window.G;
+      fire() {
+        gunFlash();
 
-        // Вспышка дула
-        // Анимация отдачи и вспышка
-        let gunEnt = document.querySelector('#gun-attach');
-        if (gunEnt) gunEnt.emit('fire');
-        let flash2 = document.querySelector('#muzzle2');
-        if (flash2) flash2.emit('flash');
-
-        let raycaster = document.querySelector('#cursor').components.raycaster;
-        let hits = raycaster.intersectedEls;
+        const hits = $$('#cursor').components.raycaster.intersectedEls;
         if (!hits.length) return;
+        const hit = hits[0];
 
-        let hit = hits[0];
+        if (G.state !== 'playing' || !hit.classList.contains('enemy')) return;
 
-        // Кнопки меню
-        if (hit.id === 'btn-start'   && G.state === 'menu')     { window.startGame(); return; }
-        if (hit.id === 'btn-restart' && G.state === 'gameover') { window.startGame(); return; }
-
-        // hit — это хитбокс .enemy, его родитель — zombie-root с data-hp
-        if (G.state !== 'playing') return;
-        if (!hit.classList.contains('enemy')) return;
-
-        // Корень зомби — parentElement хитбокса
-        let root = hit.parentElement || hit.parentNode;
+        const root = hit.parentElement || hit.parentNode;
         if (!root) return;
 
-        let hp = parseInt(root.getAttribute('data-hp') || '1') - 1;
+        const hp = parseInt(root.getAttribute('data-hp')||'1') - 1;
         root.setAttribute('data-hp', hp);
 
-        // Вспышка попадания — быстрое масштабирование
-        let mdl = root.querySelector('[gltf-model]');
-        if (mdl) {
-          mdl.setAttribute('scale', '1.15 1.15 1.15');
-          setTimeout(() => { if (mdl.parentNode) mdl.setAttribute('scale', '1 1 1'); }, 120);
+        const m = root.querySelector('[gltf-model]');
+        if (m) {
+          m.setAttribute('scale','1.15 1.15 1.15');
+          setTimeout(() => m.parentNode && m.setAttribute('scale','1 1 1'), 120);
         }
 
         if (hp <= 0) {
-          root.setAttribute('data-hp', '-1'); // блокируем повторное попадание
-          if (root.parentNode) root.parentNode.removeChild(root);
+          root.setAttribute('data-hp','-1');
+          root.parentNode?.removeChild(root);
           G.kills++; G.waveKills++;
           updateHUD();
-          if (G.waveKills >= G.waveTarget) window.nextWave();
+          if (G.waveKills >= G.waveTarget) nextWave();
         }
       }
     });
   </script>
 </head>
-
 <body>
-  <!-- HTML HUD -->
+
+  <!-- ── HUD ── -->
   <div id="hud">
-    <div id="hud-bar">
-      <span class="hud-item" id="hud-kills">💀 0</span>
-      <span class="hud-item" id="hud-wave">WAVE 1</span>
-      <span class="hud-item" id="hp-hearts">❤️❤️❤️❤️❤️</span>
-    </div>
+    <span class="hi" id="hud-kills">💀 0</span>
+    <span class="hi" id="hud-wave">ВОЛНА 1</span>
+    <span class="hi" id="hp-hearts">❤️❤️❤️❤️❤️</span>
   </div>
 
+  <!-- Прицел -->
+  <div id="crosshair"></div>
+  <div id="crosshair-ring"></div>
+
+  <!-- Пистолет -->
+  <div id="gun-ui">
+    <div id="gun-barrel"></div>
+    <div id="gun-body"></div>
+    <div id="gun-grip"></div>
+    <div id="gun-trigger"></div>
+    <div id="gun-flash"></div>
+  </div>
+
+  <!-- Анонс волны -->
   <div id="wave-banner"></div>
+  <!-- Флэш урона -->
   <div id="dmg-flash"></div>
 
-  <a-scene physics="debug: false" spawner shooter>
+  <!-- ── МЕНЮ СТАРТА ── -->
+  <div id="screen-start" class="screen">
+    <h1>☣ ЗОМБИ<br>ВЫЖИВАНИЕ ☣</h1>
+    <p>Защити башню.<br>Выживи как можно дольше.</p>
+    <button class="btn" onclick="startGame()">НАЧАТЬ</button>
+  </div>
 
+  <!-- ── МЕНЮ КОНЦА ── -->
+  <div id="screen-gameover" class="screen" style="display:none">
+    <h1>☠ БАШНЯ ПАЛА ☠</h1>
+    <div class="score-big" id="go-kills">0</div>
+    <div class="sub" id="go-wave">Волна: 1</div>
+    <button class="btn" onclick="startGame()">ЕЩЁ РАЗ</button>
+  </div>
+
+  <!-- ── A-FRAME СЦЕНА ── -->
+  <a-scene physics="debug:false" spawner shooter>
     <a-assets>
       <a-asset-item id="zombie-model" src="assets/zombie.glb"></a-asset-item>
-      <a-asset-item id="gun-model"    src="assets/gun.glb"></a-asset-item>
     </a-assets>
 
-    <!-- НЕБО -->
     <a-sky color="#3a1a00"></a-sky>
+    <a-plane static-body rotation="-90 0 0" width="80" height="80" color="#2e1e0a"></a-plane>
 
-    <!-- ЗЕМЛЯ -->
-    <a-plane id="ground" static-body
-             rotation="-90 0 0" width="80" height="80"
-             color="#2e1e0a" position="0 0 0"></a-plane>
-
-    <!-- БАШНЯ -->
-    <a-entity position="0 0 0">
-      <a-cylinder position="0 1.2 0" radius="0.7" height="2.4" color="#4a3820" segments-radial="8"></a-cylinder>
-      <a-box      position="0 2.8 0" width="1.6" height="0.5" depth="1.6"  color="#3a2810"></a-box>
+    <!-- Башня -->
+    <a-entity>
+      <a-cylinder position="0 1.2 0" radius="0.7"  height="2.4" color="#4a3820" segments-radial="8"></a-cylinder>
+      <a-box      position="0 2.8 0" width="1.6"   height="0.5" depth="1.6"    color="#3a2810"></a-box>
       <a-cylinder position="0 3.2 0" radius="0.75" height="0.2" color="#5a4830" segments-radial="8"></a-cylinder>
-      <!-- огонь -->
-      <a-sphere position="0 3.7 0" radius="0.22" color="#ff6600"
-                material="emissive:#ff3300; emissiveIntensity:1.2"
-                animation="property:scale; from:1 1 1; to:1.3 1.6 1.3; dir:alternate; dur:280; loop:true"></a-sphere>
-      <a-sphere position="0 4.0 0" radius="0.12" color="#ffcc00"
-                material="emissive:#ffaa00; emissiveIntensity:1.5"
-                animation="property:scale; from:1 1 1; to:1.4 1.8 1.4; dir:alternate; dur:200; loop:true"></a-sphere>
+      <a-sphere position="0 3.7 0" radius="0.22" color="#ff6600" material="emissive:#ff3300;emissiveIntensity:1.2" animation="property:scale;from:1 1 1;to:1.3 1.6 1.3;dir:alternate;dur:280;loop:true"></a-sphere>
+      <a-sphere position="0 4.0 0" radius="0.12" color="#ffcc00" material="emissive:#ffaa00;emissiveIntensity:1.5" animation="property:scale;from:1 1 1;to:1.4 1.8 1.4;dir:alternate;dur:200;loop:true"></a-sphere>
     </a-entity>
 
-    <!-- РАЗВАЛИНЫ -->
-    <a-box position="-11 2.5 -7"  width="4" height="5" depth="3.5" color="#222218"></a-box>
-    <a-box position="-10 5.5 -7"  width="2" height="3" depth="2"   color="#1a1a15"></a-box>
-    <a-box position="12  2   -5"  width="3" height="4" depth="3"   color="#201e14"></a-box>
-    <a-box position="-7  1.5  11" width="5" height="3" depth="4"   color="#1e1c12"></a-box>
-    <a-box position="9   3    10" width="3.5" height="6" depth="3" color="#222018"></a-box>
-    <a-box position="9   6.5  10" width="2"   height="2" depth="2" color="#1a1810"></a-box>
+    <!-- Развалины -->
+    <a-box position="-11 2.5 -7" width="4"   height="5" depth="3.5" color="#222218"></a-box>
+    <a-box position="-10 5.5 -7" width="2"   height="3" depth="2"   color="#1a1a15"></a-box>
+    <a-box position="12  2   -5" width="3"   height="4" depth="3"   color="#201e14"></a-box>
+    <a-box position="-7  1.5 11" width="5"   height="3" depth="4"   color="#1e1c12"></a-box>
+    <a-box position="9   3   10" width="3.5" height="6" depth="3"   color="#222018"></a-box>
+    <a-box position="9   6.5 10" width="2"   height="2" depth="2"   color="#1a1810"></a-box>
 
-    <!-- БОЧКИ -->
+    <!-- Бочки -->
     <a-entity position="3.5 0 5">
-      <a-cylinder radius="0.28" height="0.65" color="#444" position="0 0.33 0"></a-cylinder>
-      <a-sphere radius="0.18" color="#ff5500" position="0 0.72 0"
-                material="emissive:#ff2200; emissiveIntensity:1.2"
-                animation="property:scale; from:1 1 1; to:1.4 1.7 1.4; dir:alternate; dur:220; loop:true"></a-sphere>
+      <a-cylinder radius="0.28" height="0.65" color="#444"    position="0 0.33 0"></a-cylinder>
+      <a-sphere   radius="0.18" color="#ff5500" position="0 0.72 0" material="emissive:#ff2200;emissiveIntensity:1.2" animation="property:scale;from:1 1 1;to:1.4 1.7 1.4;dir:alternate;dur:220;loop:true"></a-sphere>
     </a-entity>
     <a-entity position="-4.5 0 3.5">
       <a-cylinder radius="0.28" height="0.65" color="#3a3a3a" position="0 0.33 0"></a-cylinder>
-      <a-sphere radius="0.18" color="#ff6600" position="0 0.72 0"
-                material="emissive:#ff4400; emissiveIntensity:1"
-                animation="property:scale; from:1 1 1; to:1.3 1.6 1.3; dir:alternate; dur:290; loop:true"></a-sphere>
+      <a-sphere   radius="0.18" color="#ff6600" position="0 0.72 0" material="emissive:#ff4400;emissiveIntensity:1"   animation="property:scale;from:1 1 1;to:1.3 1.6 1.3;dir:alternate;dur:290;loop:true"></a-sphere>
     </a-entity>
     <a-entity position="1 0 -5">
-      <a-cylinder radius="0.28" height="0.65" color="#333" position="0 0.33 0"></a-cylinder>
-      <a-sphere radius="0.15" color="#ffaa00" position="0 0.7 0"
-                material="emissive:#ff8800; emissiveIntensity:0.9"
-                animation="property:scale; from:1 1 1; to:1.2 1.5 1.2; dir:alternate; dur:350; loop:true"></a-sphere>
+      <a-cylinder radius="0.28" height="0.65" color="#333"    position="0 0.33 0"></a-cylinder>
+      <a-sphere   radius="0.15" color="#ffaa00" position="0 0.7 0"  material="emissive:#ff8800;emissiveIntensity:0.9" animation="property:scale;from:1 1 1;to:1.2 1.5 1.2;dir:alternate;dur:350;loop:true"></a-sphere>
     </a-entity>
 
-    <!-- КАМЕРА + ПРИЦЕЛ -->
+    <!-- Камера + прицел (невидимый, для raycaster) -->
     <a-entity id="camera" camera look-controls position="0 1.6 0">
       <a-entity id="cursor"
-                cursor="rayOrigin: entity; fuse: false"
-                raycaster="objects: .enemy, .clickable"
+                cursor="rayOrigin:entity;fuse:false"
+                raycaster="objects:.enemy"
                 position="0 0 -1"
-                geometry="primitive: ring; radiusInner: 0.016; radiusOuter: 0.026"
-                material="color: #ff3300; shader: flat">
-      </a-entity>
-
-      <!-- Перекрестие -->
-      <a-box position=" 0.038 0 -1" width="0.01" height="0.002" depth="0.001" material="color:#ff3300;shader:flat"></a-box>
-      <a-box position="-0.038 0 -1" width="0.01" height="0.002" depth="0.001" material="color:#ff3300;shader:flat"></a-box>
-      <a-box position="0  0.038 -1" width="0.002" height="0.01" depth="0.001" material="color:#ff3300;shader:flat"></a-box>
-      <a-box position="0 -0.038 -1" width="0.002" height="0.01" depth="0.001" material="color:#ff3300;shader:flat"></a-box>
-
-      <!-- Пистолет — модель из Блендера -->
-      <a-entity id="gun-attach"
-                position="0.28 -0.22 -0.55"
-                rotation="0 180 0"
-                animation__recoil="property: position; from: 0.28 -0.22 -0.55; to: 0.28 -0.20 -0.50; dur: 60; dir: alternate; repeat: 1; startEvents: fire">
-        <a-entity gltf-model="#gun-model" scale="1 1 1"></a-entity>
-        <a-sphere id="muzzle2" position="0 0 0.18" radius="0.04" color="#ffff00"
-                  material="emissive:#ffcc00; emissiveIntensity:3; opacity:0"
-                  animation__flash="property: material.opacity; from:1; to:0; dur:70; startEvents:flash"></a-sphere>
-      </a-entity>
+                geometry="primitive:ring;radiusInner:0;radiusOuter:0"
+                material="opacity:0"></a-entity>
     </a-entity>
 
-    <!-- СВЕТ -->
-    <a-entity light="type: ambient; color:#cc7733; intensity:1.2"></a-entity>
-    <a-entity light="type: point; color:#ffaa44; intensity:2.5; distance:20" position="0 4 0"></a-entity>
-    <a-entity light="type: directional; color:#ffcc88; intensity:0.8" position="-4 8 5"></a-entity>
-
-    <!-- МЕНЮ СТАРТА -->
-    <a-entity id="startMenu" position="0 1.5 -4">
-      <a-text value="☣ ZOMBIE SURVIVAL ☣"
-              position="0 1.6 0" align="center" color="#ff3300" width="11"
-              material="shader:flat"></a-text>
-      <a-text value="Defend the tower. Survive as long as you can."
-              position="0 0.8 0" align="center" color="#cc9966" width="8"
-              material="shader:flat"></a-text>
-      <a-plane id="btn-start" class="clickable"
-               color="#881100" width="3.5" height="1.3" position="0 -0.1 0"
-               animation="property:scale; to:1.06 1.06 1.06; dir:alternate; dur:900; loop:true">
-        <a-text value="START" color="#ffffff" align="center" width="10" position="0 0 0.05"></a-text>
-      </a-plane>
-    </a-entity>
-
-    <!-- МЕНЮ GAME OVER -->
-    <a-entity id="gameOverMenu" position="0 -500 0">
-      <a-text value="☠ TOWER FELL ☠"
-              position="0 1.6 0" align="center" color="#ff2200" width="11"
-              material="shader:flat"></a-text>
-      <a-text id="txt-final" value="Kills: 0&#10;Wave: 1"
-              position="0 0.7 0" align="center" color="#ffcc44" width="9"
-              material="shader:flat"></a-text>
-      <a-plane id="btn-restart" class="clickable"
-               color="#881100" width="3.5" height="1.3" position="0 -0.4 0"
-               animation="property:scale; to:1.06 1.06 1.06; dir:alternate; dur:900; loop:true">
-        <a-text value="PLAY AGAIN" color="#ffffff" align="center" width="10" position="0 0 0.05"></a-text>
-      </a-plane>
-    </a-entity>
+    <!-- Свет -->
+    <a-entity light="type:ambient;color:#cc7733;intensity:1.2"></a-entity>
+    <a-entity light="type:point;color:#ffaa44;intensity:2.5;distance:20" position="0 4 0"></a-entity>
+    <a-entity light="type:directional;color:#ffcc88;intensity:0.8" position="-4 8 5"></a-entity>
 
   </a-scene>
 </body>
