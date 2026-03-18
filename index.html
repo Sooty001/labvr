@@ -5,7 +5,6 @@
   <title>Zombie Survival</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <style>
-    /* ── Убираем кнопки AR/VR/Enter ── */
     .a-enter-vr,
     .a-enter-ar,
     .a-orientation-modal,
@@ -14,7 +13,6 @@
       display: none !important;
     }
 
-    /* ── Камера-фон ── */
     #camera-bg {
       position: fixed;
       inset: 0;
@@ -25,7 +23,6 @@
       background: #000;
     }
 
-    /* ── A-Frame сцена прозрачная ── */
     a-scene {
       background: transparent !important;
     }
@@ -33,7 +30,6 @@
       background: transparent !important;
     }
 
-    /* ── HUD ── */
     #hud { display:none; position:fixed; top:0; left:0; right:0; pointer-events:none; z-index:10; font-family:'Courier New',monospace; }
     #hud-bar { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent); }
     .hud-item { color:#fff; font-size:22px; font-weight:bold; text-shadow:0 0 8px #f60; }
@@ -45,7 +41,6 @@
 
     #dmg-flash { display:none; position:fixed; inset:0; background:rgba(255,0,0,.35); pointer-events:none; z-index:15; }
 
-    /* ── Сообщение о камере ── */
     #cam-msg {
       position: fixed;
       top: 50%;
@@ -112,7 +107,6 @@
       document.querySelector('#gameOverMenu').setAttribute('position','0 1.5 -4');
     };
 
-    // ── Камера как фон ──
     window.addEventListener('load', () => {
       const video = document.getElementById('camera-bg');
       const msg   = document.getElementById('cam-msg');
@@ -120,7 +114,7 @@
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: 'environment' }, // задняя камера на мобиле
+            facingMode: { ideal: 'environment' },
             width:  { ideal: 1280 },
             height: { ideal: 720 }
           },
@@ -135,7 +129,6 @@
           msg.textContent = '📷 Камера недоступна.\nИгра продолжается без AR-фона.';
           msg.style.display = 'block';
           setTimeout(() => msg.style.display = 'none', 3000);
-          // fallback — тёмный фон
           video.style.background = '#1a0a00';
         });
       } else {
@@ -144,7 +137,6 @@
         setTimeout(() => msg.style.display = 'none', 3000);
       }
 
-      // GPS
       const box = document.getElementById('gps-box');
       if (!navigator.geolocation) return box.textContent = '📍 GPS: недоступен';
       navigator.geolocation.watchPosition(
@@ -154,7 +146,6 @@
       );
     });
 
-    // Убираем кнопки AR/VR после загрузки A-Frame
     document.addEventListener('DOMContentLoaded', () => {
       const hide = () => {
         document.querySelectorAll('.a-enter-vr, .a-enter-ar, [class*="a-enter-vr"], [class*="a-enter-ar"]')
@@ -227,6 +218,10 @@
         if (now - this.last < 120) return;
         this.last = now;
 
+        // ── ЗВУК ВЫСТРЕЛА ──
+        const snd = document.getElementById('shoot-sound');
+        if (snd) { snd.currentTime = 0; snd.play(); }
+
         document.querySelector('#gun-attach')?.emit('fire');
         document.querySelector('#muzzle2')?.emit('flash');
 
@@ -277,17 +272,16 @@
   <div id="wave-banner"></div>
   <div id="dmg-flash"></div>
 
-  <!-- A-Frame с прозрачным фоном -->
   <a-scene spawner shooter style="background:transparent;" vr-mode-ui="enabled:false" arjs="false">
     <a-assets>
       <a-asset-item id="zombie-model" src="assets/zombie.glb"></a-asset-item>
       <a-asset-item id="gun-model"    src="assets/gun.glb"></a-asset-item>
+      <!-- ЗВУК ВЫСТРЕЛА -->
+      <audio id="shoot-sound" src="assets/gun-shot.mp3" preload="auto"></audio>
     </a-assets>
 
-    <!-- Прозрачное небо -->
     <a-sky color="transparent" opacity="0" material="transparent:true;opacity:0"></a-sky>
 
-    <!-- Земля — полупрозрачная для AR-эффекта -->
     <a-plane rotation="-90 0 0" width="80" height="80"
       material="color:#1a0a00;transparent:true;opacity:0.35" position="0 0 0"></a-plane>
 
@@ -378,7 +372,6 @@
       ruins.appendChild(ent);
     });
 
-    // Скрываем кнопки VR/AR после полной загрузки сцены
     document.querySelector('a-scene').addEventListener('loaded', () => {
       document.querySelectorAll('.a-enter-vr, .a-enter-ar').forEach(el => el.remove());
     });
