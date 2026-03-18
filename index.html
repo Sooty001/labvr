@@ -5,13 +5,63 @@
   <title>Zombie Survival</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <style>
+    /* ── Убираем кнопки AR/VR/Enter ── */
+    .a-enter-vr,
+    .a-enter-ar,
+    .a-orientation-modal,
+    [class*="a-enter-vr"],
+    [class*="a-enter-ar"] {
+      display: none !important;
+    }
+
+    /* ── Камера-фон ── */
+    #camera-bg {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+      background: #000;
+    }
+
+    /* ── A-Frame сцена прозрачная ── */
+    a-scene {
+      background: transparent !important;
+    }
+    .a-canvas {
+      background: transparent !important;
+    }
+
+    /* ── HUD ── */
     #hud { display:none; position:fixed; top:0; left:0; right:0; pointer-events:none; z-index:10; font-family:'Courier New',monospace; }
     #hud-bar { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent); }
     .hud-item { color:#fff; font-size:22px; font-weight:bold; text-shadow:0 0 8px #f60; }
+
     #gps-box { position:fixed; bottom:12px; left:14px; color:#00ff88; font-size:13px; font-family:'Courier New',monospace; background:rgba(0,0,0,.55); padding:6px 10px; border-radius:6px; pointer-events:none; z-index:10; text-shadow:0 0 6px #00ff88; }
+
     #wave-banner { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); color:#f30; font-size:40px; font-weight:bold; font-family:'Courier New',monospace; text-shadow:0 0 20px red; pointer-events:none; z-index:20; animation:pop .3s ease-out; }
     @keyframes pop { from{transform:translate(-50%,-50%) scale(.4)} to{transform:translate(-50%,-50%) scale(1)} }
+
     #dmg-flash { display:none; position:fixed; inset:0; background:rgba(255,0,0,.35); pointer-events:none; z-index:15; }
+
+    /* ── Сообщение о камере ── */
+    #cam-msg {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      color: #ff8844;
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      padding: 18px 24px;
+      border-radius: 10px;
+      z-index: 100;
+      text-align: center;
+      border: 1px solid #ff4400;
+      display: none;
+    }
   </style>
   <script>
     const G = window.G = {
@@ -62,8 +112,39 @@
       document.querySelector('#gameOverMenu').setAttribute('position','0 1.5 -4');
     };
 
-    // GPS
+    // ── Камера как фон ──
     window.addEventListener('load', () => {
+      const video = document.getElementById('camera-bg');
+      const msg   = document.getElementById('cam-msg');
+
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' }, // задняя камера на мобиле
+            width:  { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        })
+        .then(stream => {
+          video.srcObject = stream;
+          video.play();
+        })
+        .catch(err => {
+          console.warn('Камера недоступна:', err);
+          msg.textContent = '📷 Камера недоступна.\nИгра продолжается без AR-фона.';
+          msg.style.display = 'block';
+          setTimeout(() => msg.style.display = 'none', 3000);
+          // fallback — тёмный фон
+          video.style.background = '#1a0a00';
+        });
+      } else {
+        msg.textContent = '📷 Браузер не поддерживает камеру.';
+        msg.style.display = 'block';
+        setTimeout(() => msg.style.display = 'none', 3000);
+      }
+
+      // GPS
       const box = document.getElementById('gps-box');
       if (!navigator.geolocation) return box.textContent = '📍 GPS: недоступен';
       navigator.geolocation.watchPosition(
@@ -71,6 +152,17 @@
         () => box.textContent = '📍 GPS: нет доступа',
         { enableHighAccuracy:true, maximumAge:3000 }
       );
+    });
+
+    // Убираем кнопки AR/VR после загрузки A-Frame
+    document.addEventListener('DOMContentLoaded', () => {
+      const hide = () => {
+        document.querySelectorAll('.a-enter-vr, .a-enter-ar, [class*="a-enter-vr"], [class*="a-enter-ar"]')
+          .forEach(el => el.style.display = 'none');
+      };
+      hide();
+      setTimeout(hide, 500);
+      setTimeout(hide, 1500);
     });
 
     // ── A-FRAME КОМПОНЕНТЫ ──────────────────────────────
@@ -166,7 +258,14 @@
     });
   </script>
 </head>
-<body>
+<body style="margin:0;padding:0;overflow:hidden;background:#000;">
+
+  <!-- Камера как фон -->
+  <video id="camera-bg" autoplay playsinline muted></video>
+
+  <!-- Сообщение о камере -->
+  <div id="cam-msg"></div>
+
   <div id="hud">
     <div id="hud-bar">
       <span class="hud-item" id="hud-kills">💀 0</span>
@@ -178,14 +277,19 @@
   <div id="wave-banner"></div>
   <div id="dmg-flash"></div>
 
-  <a-scene spawner shooter>
+  <!-- A-Frame с прозрачным фоном -->
+  <a-scene spawner shooter style="background:transparent;" vr-mode-ui="enabled:false" arjs="false">
     <a-assets>
       <a-asset-item id="zombie-model" src="assets/zombie.glb"></a-asset-item>
       <a-asset-item id="gun-model"    src="assets/gun.glb"></a-asset-item>
     </a-assets>
 
-    <a-sky color="#3a1a00"></a-sky>
-    <a-plane rotation="-90 0 0" width="80" height="80" color="#2e1e0a" position="0 0 0"></a-plane>
+    <!-- Прозрачное небо -->
+    <a-sky color="transparent" opacity="0" material="transparent:true;opacity:0"></a-sky>
+
+    <!-- Земля — полупрозрачная для AR-эффекта -->
+    <a-plane rotation="-90 0 0" width="80" height="80"
+      material="color:#1a0a00;transparent:true;opacity:0.35" position="0 0 0"></a-plane>
 
     <!-- Башня -->
     <a-entity position="0 0 0">
@@ -198,7 +302,6 @@
         animation="property:scale;from:1 1 1;to:1.4 1.8 1.4;dir:alternate;dur:200;loop:true"></a-sphere>
     </a-entity>
 
-    <!-- Развалины (генерируются скриптом ниже) -->
     <a-entity id="ruins"></a-entity>
 
     <!-- Камера + прицел -->
@@ -244,7 +347,6 @@
   </a-scene>
 
   <script>
-    // Развалины и бочки генерируются программно
     const ruins = document.getElementById('ruins');
 
     [
@@ -274,6 +376,11 @@
           material="emissive:${ec};emissiveIntensity:1.1"
           animation="property:scale;from:1 1 1;to:1.4 1.7 1.4;dir:alternate;dur:${dur};loop:true"></a-sphere>`;
       ruins.appendChild(ent);
+    });
+
+    // Скрываем кнопки VR/AR после полной загрузки сцены
+    document.querySelector('a-scene').addEventListener('loaded', () => {
+      document.querySelectorAll('.a-enter-vr, .a-enter-ar').forEach(el => el.remove());
     });
   </script>
 </body>
